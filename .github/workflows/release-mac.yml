@@ -1,0 +1,39 @@
+name: Release macOS build
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Release tag to upload to (e.g. v1.0.0)"
+        required: true
+
+jobs:
+  build-and-upload-mac:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Package macOS app
+        run: npm run package-mac
+
+      - name: Create macOS ZIP
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent dist/MultiAICockpit-darwin-universal dist/MultiAICockpit-macOS-universal-${{ github.event.inputs.tag_name }}.zip
+
+      - name: Upload ZIP to GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.tag_name }}
+          files: dist/MultiAICockpit-macOS-universal-${{ github.event.inputs.tag_name }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
