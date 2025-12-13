@@ -18,6 +18,26 @@ const views = {};
 // Track which model is currently active
 let activeModel = null;
 
+// Helper: which URLs are allowed to stay inside the app?
+function isAllowedInApp(url) {
+  try {
+    const u = new URL(url);
+
+    if (u.protocol !== "https:") return false;
+
+    const host = u.host;
+    return (
+      host === "chatgpt.com" ||
+      host === "claude.ai" ||
+      host === "copilot.microsoft.com" ||
+      host === "gemini.google.com" ||
+      host === "www.perplexity.ai"
+    );
+  } catch {
+    return false;
+  }
+}
+
 // Create a BrowserView for a model (if not already created) and load the URL
 function ensureView(modelName) {
   if (views[modelName]) {
@@ -35,26 +55,30 @@ function ensureView(modelName) {
     }
   });
 
-  // Load the provider URL
-  view.webContents.loadURL(url);
+  const wc = view.webContents;
 
-  // Open external links in default system browser
-  view.webContents.setWindowOpenHandler(({ url }) => {
-    if (
-      url.startsWith("https://chatgpt.com/") ||
-      url.startsWith("https://claude.ai/") ||
-      url.startsWith("https://copilot.microsoft.com/") ||
-      url.startsWith("https://gemini.google.com/") ||
-      url.startsWith("https://www.perplexity.ai/")
-    ) {
+  // Load the provider URL
+  wc.loadURL(url);
+
+  // 1) Intercept NEW windows (target=_blank, window.open)
+  wc.setWindowOpenHandler(({ url }) => {
+    if (isAllowedInApp(url)) {
       return { action: "allow" };
     }
     shell.openExternal(url);
     return { action: "deny" };
   });
 
+  // 2) Intercept normal navigations inside the same view
+  wc.on("will-navigate", (event, url) => {
+    if (!isAllowedInApp(url)) {
+      event.preventDefault();
+      shell.openExternal(url);
+    }
+  });
+
   // Attach a basic right-click context menu
-  view.webContents.on("context-menu", (event, params) => {
+  wc.on("context-menu", (event, params) => {
     const template = [
       { role: "undo" },
       { role: "redo" },
@@ -121,9 +145,13 @@ function createWindow() {
     }
   });
 
+  // Start with maximized window
+  mainWindow.maximize();
+
+  // Load UI (top bar and tabs)
   mainWindow.loadFile("index.html");
 
-  // Lazy preload: only ChatGPT on startup
+  // Lazy preload: only create ChatGPT on startup
   activeModel = "chatgpt";
   const initialView = ensureView(activeModel);
   if (initialView) {
@@ -136,12 +164,15 @@ function createWindow() {
   });
 
   mainWindow.on("closed", () => {
+    // Clean up BrowserViews safely
     for (const key of Object.keys(views)) {
       const v = views[key];
       if (v && v.webContents && !v.webContents.isDestroyed()) {
         try {
           v.destroy();
-        } catch {}
+        } catch {
+          // ignore any cleanup errors
+        }
       }
       delete views[key];
     }
@@ -153,7 +184,7 @@ function createWindow() {
 // Renderer requests tab switch
 ipcMain.on("switch-model", (event, modelName) => {
   if (!MODEL_URLS[modelName]) return;
-  if (activeModel === modelName) return;
+  if (activeModel === modelName) return; // already active
   showView(modelName);
 });
 
