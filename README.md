@@ -164,7 +164,7 @@ This is an early, experimental tool intended for personal use and tinkering. Exp
 ### Planned improvements
 
 - ~~Prebuilt releases for Windows and macOS attached to GitHub Releases~~
-- Keyboard shortcuts for tab switching (e.g. Ctrl+1 / Cmd+1)
+- ~~Keyboard shortcuts for tab switching (e.g. Ctrl+1 / Cmd+1 and Ctrl+Teb/Ctrl+Shift+Tab)~~
 - Unified Search Across Tabs: Let users type a query once and broadcast it to all tabs
 - Customizable Themes: Dark/light modes, plus user-defined color schemes for each AI tab
 - Pinned Tabs / Favorites: Allow users to reorder or pin their most-used AI assistants
