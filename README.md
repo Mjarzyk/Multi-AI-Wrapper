@@ -1,23 +1,3 @@
-## Downloads
-
-[![Download for Windows](https://img.shields.io/badge/Windows-download-0078D6?logo=windows&logoColor=white)](https://github.com/Mjarzyk/Multi-AI-Wrapper/releases/download/v1.0.0/MultiAICockpit-win32-x64-v1.0.0.zip)
-[![Download for macOS](https://img.shields.io/badge/macOS-download-000000?logo=apple&logoColor=white)](https://github.com/Mjarzyk/Multi-AI-Wrapper/releases/download/v1.0.0/MultiAICockpit-macOS-universal-v1.0.0.zip)
-
----
-
-## Platform Notes (macOS)
-
-**Passkeys / Touch ID:**  
-macOS builds of the app currently cannot use system passkeys or Touch ID inside the embedded browser.  
-If your account uses a passkey for login, open the service once in Safari or Chrome to complete the sign-in, then return to the app.
-
-**Gemini sign-in / message errors:**  
-Gemini may show “something went wrong” or fail to send messages on macOS when used inside the wrapper.  
-This is due to Electron’s WebView limitations on macOS.  
-Signing into Gemini in Safari first generally resolves the issue.
-
----
-
 # Multi-AI Wrapper
 
 Multi-AI Wrapper is a lightweight Electron desktop app that puts multiple AI assistants into a single window with simple tabs.
@@ -31,6 +11,13 @@ Supported services:
 - Perplexity
 
 > Built collaboratively with the help of AI tools.
+
+---
+
+## Downloads
+
+[![Download for Windows](https://img.shields.io/badge/Windows-download-0078D6?logo=windows&logoColor=white)](https://github.com/Wandering-Wampa/Multi-AI-Wrapper/releases/latest)
+[![Download for macOS](https://img.shields.io/badge/macOS-download-000000?logo=apple&logoColor=white)](https://github.com/Wandering-Wampa/Multi-AI-Wrapper/releases/latest)
 
 ---
 
@@ -95,14 +82,27 @@ After the first time, you can open it normally with a double-click.
 
 - The top bar (tabs) is a simple HTML/JS UI.
 - Each provider runs in its own Electron `BrowserView`:
-  - ChatGPT – `https://chatgpt.com/`
-  - Claude – `https://claude.ai/`
-  - Copilot – `https://copilot.microsoft.com/`
-  - Gemini – `https://gemini.google.com/app`
-  - Perplexity – `https://www.perplexity.ai/`
+  - ChatGPT – https://chatgpt.com/
+  - Claude – https://claude.ai/
+  - Copilot – https://copilot.microsoft.com/
+  - Gemini – https://gemini.google.com/app
+  - Perplexity – https://www.perplexity.ai/
 - Views are created lazily the first time you click each tab, then reused for instant switching.
 
 You sign in inside each tab just like you would in a normal browser.
+
+---
+
+## Platform notes (macOS)
+
+**Passkeys / Touch ID**  
+macOS builds of the app currently cannot use system passkeys or Touch ID inside the embedded browser.  
+If your account uses a passkey for login, open the service once in Safari or Chrome to complete the sign-in, then return to the app.
+
+**Gemini sign-in / message errors**  
+Gemini may show “something went wrong” or fail to send messages on macOS when used inside the wrapper.  
+This is due to Electron’s WebView limitations on macOS.  
+Signing into Gemini in Safari first generally resolves the issue.
 
 ---
 
@@ -153,7 +153,6 @@ On macOS or GitHub Actions, this creates:
 ```
 dist/MultiAICockpit-darwin-universal/
 ```
-
 
 The `MultiAICockpit.app` inside that folder is the macOS app.
 
