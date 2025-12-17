@@ -165,6 +165,7 @@ This is an early, experimental tool intended for personal use and tinkering. Exp
 - ~~Prebuilt releases for Windows and macOS attached to GitHub Releases~~
 - ~~Keyboard shortcuts for tab switching (e.g. Ctrl+1 / Cmd+1 and Ctrl+Teb/Ctrl+Shift+Tab)~~
 - ~~Allow users to reorder the AI assistants, and tab order persists after relaunch~~
+- ~~Spellcheck support~~ – Right-click misspelled words in text inputs to see correction suggestions
 - Resource Monitoring: Show memory/CPU usage per tab to help users manage heavy sessions
 - Customizable Themes: Dark/light modes, plus user-defined color schemes for each AI tab
 - Note-Taking Sidebar: A lightweight markdown editor alongside AI tabs for jotting down insights

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, BrowserView, ipcMain, Menu, shell } = require("electron");
+const { app, BrowserWindow, BrowserView, ipcMain, Menu, shell, session } = require("electron");
 const path = require("path");
 const fs = require("fs");
 
@@ -168,7 +168,8 @@ function ensureView(modelName) {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: true
+      sandbox: true,
+      spellcheck: true
     }
   });
 
@@ -191,19 +192,63 @@ function ensureView(modelName) {
     }
   });
 
-  wc.on("context-menu", () => {
-    const template = [
-      { role: "undo" },
-      { role: "redo" },
-      { type: "separator" },
-      { role: "cut" },
-      { role: "copy" },
-      { role: "paste" },
-      { type: "separator" },
-      { role: "selectAll" }
-    ];
-    const menu = Menu.buildFromTemplate(template);
-    menu.popup({ window: mainWindow });
+  // Right-click context menu WITH spellcheck suggestions
+  wc.on("context-menu", (_event, params) => {
+    try {
+      const template = [];
+
+      // Spellcheck suggestions (only when a misspelling is detected)
+      if (params && params.misspelledWord && Array.isArray(params.dictionarySuggestions)) {
+        const suggestions = params.dictionarySuggestions.slice(0, 8);
+
+        if (suggestions.length) {
+          for (const s of suggestions) {
+            template.push({
+              label: s,
+              click: () => {
+                try { wc.replaceMisspelling(s); } catch {}
+              }
+            });
+          }
+        } else {
+          template.push({
+            label: "No spelling suggestions",
+            enabled: false
+          });
+        }
+
+        template.push({ type: "separator" });
+
+        template.push({
+          label: `Add to Dictionary`,
+          click: () => {
+            try {
+              const word = params.misspelledWord;
+              if (word) wc.session.addWordToSpellCheckerDictionary(word);
+            } catch {}
+          }
+        });
+
+        template.push({ type: "separator" });
+      }
+
+      // Basic editing actions (keep your original behavior)
+      template.push(
+        { role: "undo" },
+        { role: "redo" },
+        { type: "separator" },
+        { role: "cut" },
+        { role: "copy" },
+        { role: "paste" },
+        { type: "separator" },
+        { role: "selectAll" }
+      );
+
+      const menu = Menu.buildFromTemplate(template);
+      menu.popup({ window: mainWindow });
+    } catch {
+      // ignore menu errors
+    }
   });
 
   views[modelName] = view;
@@ -258,7 +303,8 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: true
+      sandbox: true,
+      spellcheck: true
     }
   });
 
@@ -341,6 +387,11 @@ ipcMain.on("set-model-order", (_event, order) => {
 });
 
 app.whenReady().then(() => {
+  // Spellcheck language (English)
+  try {
+    session.defaultSession.setSpellCheckerLanguages(["en-US"]);
+  } catch {}
+
   loadSettings();
   createWindow();
 
