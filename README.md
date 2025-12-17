@@ -166,11 +166,9 @@ This is an early, experimental tool intended for personal use and tinkering. Exp
 - ~~Keyboard shortcuts for tab switching (e.g. Ctrl+1 / Cmd+1 and Ctrl+Teb/Ctrl+Shift+Tab)~~
 - ~~Allow users to reorder the AI assistants, and tab order persists after relaunch~~
 - ~~Spellcheck support~~ – Right-click misspelled words in text inputs to see correction suggestions
-- Resource Monitoring: Show memory/CPU usage per tab to help users manage heavy sessions
-- Customizable Themes: Dark/light modes, plus user-defined color schemes for each AI tab
-- Note-Taking Sidebar: A lightweight markdown editor alongside AI tabs for jotting down insights
-- Export Options: One-click export of selected AI responses to Markdown, PDF, or plain text
-- Unified Search Across Tabs: Let users type a query once and broadcast it to all tabs
-- Cross-AI Comparison Mode: A split-screen or grid view showing multiple assistants’ answers simultaneously
-- Offline Caching: Cache recent conversations locally for quick access even without internet
+- Tab status indicators – Tabs can show lightweight states (e.g., loading) so you can tell what’s happening at a glance.
+- Customizable themes – Dark/light modes and optional per-tab accent colors.
+- Settings panel – Simple in-app settings for theme options, per-tab colors, and quality-of-life toggles.
+- Command palette (Ctrl+K / Cmd+K) – A searchable action launcher to switch tabs, toggle settings (theme/spellcheck), and run common commands without cluttering the UI.
+- Export options (notes/app-owned content) – Export your notes or saved content to Markdown, PDF, or plain text.
 
