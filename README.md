@@ -35,7 +35,7 @@ Supported services:
 
 ---
 
-## How to use (normal users)
+## How to use
 
 You do **not** need Node.js, npm, or any dev tools to use this app.
 
@@ -43,7 +43,7 @@ You do **not** need Node.js, npm, or any dev tools to use this app.
 
 1. Download the Windows build ZIP.
    - This may come from GitHub Releases or directly from the author.
-2. Unzip it somewhere convenient.
+2. Unzip it.
 3. Inside the unzipped folder, run:
 
    `MultiAICockpit.exe`
@@ -78,6 +78,19 @@ After the first time, you can open it normally with a double-click.
 
 ---
 
+## Platform notes (macOS)
+
+**Passkeys / Touch ID**  
+macOS builds of the app currently cannot use system passkeys or Touch ID inside the embedded browser.  
+If your account uses a passkey for login, open the service once in Safari or Chrome to complete the sign-in, then return to the app.
+
+**Gemini sign-in / message errors**  
+Gemini may show “something went wrong” or fail to send messages on macOS when used inside the wrapper.  
+This is due to Electron’s WebView limitations on macOS.  
+Signing into Gemini in Safari first generally resolves the issue.
+
+---
+
 ## How it works (high level)
 
 - The top bar (tabs) is a simple HTML/JS UI.
@@ -90,19 +103,6 @@ After the first time, you can open it normally with a double-click.
 - Views are created lazily the first time you click each tab, then reused for instant switching.
 
 You sign in inside each tab just like you would in a normal browser.
-
----
-
-## Platform notes (macOS)
-
-**Passkeys / Touch ID**  
-macOS builds of the app currently cannot use system passkeys or Touch ID inside the embedded browser.  
-If your account uses a passkey for login, open the service once in Safari or Chrome to complete the sign-in, then return to the app.
-
-**Gemini sign-in / message errors**  
-Gemini may show “something went wrong” or fail to send messages on macOS when used inside the wrapper.  
-This is due to Electron’s WebView limitations on macOS.  
-Signing into Gemini in Safari first generally resolves the issue.
 
 ---
 
