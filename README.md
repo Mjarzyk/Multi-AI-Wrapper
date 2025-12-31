@@ -165,7 +165,8 @@ This is an early, experimental tool intended for personal use and tinkering. Exp
 - ~~Prebuilt releases for Windows and macOS attached to GitHub Releases~~
 - ~~Keyboard shortcuts for tab switching (e.g. Ctrl+1 / Cmd+1 and Ctrl+Teb/Ctrl+Shift+Tab)~~
 - ~~Allow users to reorder the AI assistants, and tab order persists after relaunch~~
-- ~~Spellcheck support~~ – Right-click misspelled words in text inputs to see correction suggestions
+- ~~Portable Linux build~~
+- ~~Spellcheck support – Right-click misspelled words in text inputs to see correction suggestions~~
 - Tab status indicators – Tabs can show lightweight states (e.g., loading) so you can tell what’s happening at a glance.
 - Customizable themes – Dark/light modes and optional per-tab accent colors.
 - Settings panel – Simple in-app settings for theme options, per-tab colors, and quality-of-life toggles.
