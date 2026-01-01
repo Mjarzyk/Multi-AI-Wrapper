@@ -51,6 +51,8 @@
       outline: none;
       white-space: nowrap;
       transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+      display: inline-flex;
+      align-items: center;
     }
 
     .tab-button:hover {
@@ -70,6 +72,35 @@
       flex: 1;
     }
 
+    #actions {
+      -webkit-app-region: no-drag;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-left: 12px;
+    }
+
+    #refresh-active {
+      border: 1px solid #444;
+      background: #222;
+      color: #eee;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      outline: none;
+      transition: background 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #refresh-active:hover {
+      background: #2d2d2d;
+      border-color: #666;
+      transform: translateY(-1px);
+    }
+
     #hint {
       font-size: 11px;
       opacity: 0.6;
@@ -80,17 +111,21 @@
 <body>
   <div id="top-bar">
     <div id="title">Multi-AI Cockpit</div>
-    <div id="tabs">
 
+    <div id="tabs">
       <button class="tab-button" data-model="chatgpt">ChatGPT</button>
       <button class="tab-button" data-model="claude">Claude</button>
       <button class="tab-button" data-model="copilot">Copilot</button>
       <button class="tab-button" data-model="gemini">Gemini</button>
       <button class="tab-button" data-model="perplexity">Perplexity</button>
-
     </div>
+
     <div id="spacer"></div>
-    <div id="hint">Switch between all your AI models.</div>
+
+    <div id="actions">
+      <button id="refresh-active" title="Refresh active tab (Shift-click = hard refresh)">⟳ Refresh</button>
+      <div id="hint">Switch between all your AI models.</div>
+    </div>
   </div>
 
   <script src="renderer.js"></script>

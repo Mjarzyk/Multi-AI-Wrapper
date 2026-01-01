@@ -24,6 +24,10 @@ const views = {};
 // Track which model is currently active
 let activeModel = null;
 
+// Track per-model load state for UI
+// { [model]: { initialized: boolean, loading: boolean, error: boolean } }
+const modelLoadState = Object.create(null);
+
 // --- renderer sync / UI update signal handling ---
 let rendererReady = false;
 let pendingActiveModel = null;
@@ -38,6 +42,31 @@ function notifyActiveModel(modelName) {
 
   try {
     mainWindow.webContents.send("active-model-changed", modelName);
+  } catch {}
+}
+
+function notifyModelLoadState(modelName) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (!rendererReady) return;
+
+  const state = modelLoadState[modelName] || { initialized: false, loading: false, error: false };
+
+  try {
+    mainWindow.webContents.send("model-load-state-changed", {
+      model: modelName,
+      initialized: !!state.initialized,
+      loading: !!state.loading,
+      error: !!state.error
+    });
+  } catch {}
+}
+
+function notifyAllModelLoadStates() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (!rendererReady) return;
+
+  try {
+    mainWindow.webContents.send("all-model-load-states", modelLoadState);
   } catch {}
 }
 // --- end ---
@@ -157,6 +186,16 @@ function handleShortcut(event, input) {
   }
 }
 
+function setModelState(modelName, patch) {
+  const prev = modelLoadState[modelName] || {};
+  modelLoadState[modelName] = {
+    initialized: !!prev.initialized,
+    loading: typeof patch.loading === "boolean" ? patch.loading : !!prev.loading,
+    error: typeof patch.error === "boolean" ? patch.error : !!prev.error
+  };
+  notifyModelLoadState(modelName);
+}
+
 // Create a BrowserView for a model (if not already created) and load the URL
 function ensureView(modelName) {
   if (views[modelName]) return views[modelName];
@@ -175,7 +214,21 @@ function ensureView(modelName) {
 
   const wc = view.webContents;
 
+  // initialize state (this is what drives "green dot means preloaded")
+  modelLoadState[modelName] = {
+    initialized: true,
+    loading: true,
+    error: false
+  };
+  notifyModelLoadState(modelName);
+
   wc.on("before-input-event", handleShortcut);
+
+  // loading indicators
+  wc.on("did-start-loading", () => setModelState(modelName, { loading: true, error: false }));
+  wc.on("did-stop-loading", () => setModelState(modelName, { loading: false }));
+  wc.on("did-fail-load", () => setModelState(modelName, { loading: false, error: true }));
+  wc.on("did-fail-provisional-load", () => setModelState(modelName, { loading: false, error: true }));
 
   wc.loadURL(url);
 
@@ -197,7 +250,7 @@ function ensureView(modelName) {
     try {
       const template = [];
 
-      // Spellcheck suggestions (only when a misspelling is detected)
+      // Spellcheck suggestions
       if (params && params.misspelledWord && Array.isArray(params.dictionarySuggestions)) {
         const suggestions = params.dictionarySuggestions.slice(0, 8);
 
@@ -211,10 +264,7 @@ function ensureView(modelName) {
             });
           }
         } else {
-          template.push({
-            label: "No spelling suggestions",
-            enabled: false
-          });
+          template.push({ label: "No spelling suggestions", enabled: false });
         }
 
         template.push({ type: "separator" });
@@ -232,7 +282,6 @@ function ensureView(modelName) {
         template.push({ type: "separator" });
       }
 
-      // Basic editing actions (keep your original behavior)
       template.push(
         { role: "undo" },
         { role: "redo" },
@@ -246,9 +295,7 @@ function ensureView(modelName) {
 
       const menu = Menu.buildFromTemplate(template);
       menu.popup({ window: mainWindow });
-    } catch {
-      // ignore menu errors
-    }
+    } catch {}
   });
 
   views[modelName] = view;
@@ -270,6 +317,38 @@ function showView(modelName) {
   saveSettings();
 
   notifyActiveModel(modelName);
+}
+
+// Refresh helpers
+function refreshModel(modelName, hard = false) {
+  if (!MODEL_URLS[modelName]) return;
+
+  const view = ensureView(modelName);
+  if (!view) return;
+
+  const wc = view.webContents;
+  if (!wc || wc.isDestroyed()) return;
+
+  try {
+    if (hard && typeof wc.reloadIgnoringCache === "function") wc.reloadIgnoringCache();
+    else wc.reload();
+  } catch {}
+}
+
+function refreshActive(hard = false) {
+  if (!activeModel) return;
+  refreshModel(activeModel, hard);
+}
+
+// Stop loading helper (used when clicking spinner)
+function stopModel(modelName) {
+  const view = views[modelName];
+  if (!view) return;
+
+  const wc = view.webContents;
+  if (!wc || wc.isDestroyed()) return;
+
+  try { wc.stop(); } catch {}
 }
 
 // Resize view to fit under top bar
@@ -318,6 +397,9 @@ function createWindow() {
     try {
       mainWindow.webContents.send("model-order-changed", MODEL_ORDER);
     } catch {}
+
+    // Send initial load states
+    notifyAllModelLoadStates();
 
     // Then sync active model highlight
     const toSend = pendingActiveModel || activeModel;
@@ -384,6 +466,22 @@ ipcMain.on("set-model-order", (_event, order) => {
       mainWindow.webContents.send("model-order-changed", MODEL_ORDER);
     } catch {}
   }
+});
+
+// Refresh IPC
+ipcMain.on("refresh-active", (_event, payload) => {
+  refreshActive(!!(payload && payload.hard));
+});
+
+ipcMain.on("refresh-model", (_event, payload) => {
+  if (!payload || !payload.modelName) return;
+  refreshModel(payload.modelName, !!payload.hard);
+});
+
+// Stop IPC (spinner click)
+ipcMain.on("stop-model", (_event, payload) => {
+  if (!payload || !payload.modelName) return;
+  stopModel(payload.modelName);
 });
 
 app.whenReady().then(() => {

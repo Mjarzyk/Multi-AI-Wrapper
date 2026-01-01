@@ -168,7 +168,12 @@ This is an early, experimental tool intended for personal use and tinkering. Exp
 - ~~Allow users to reorder the AI assistants, and tab order persists after relaunch~~
 - ~~Portable Linux build~~
 - ~~Spellcheck support – Right-click misspelled words in text inputs to see correction suggestions~~
-- Tab status indicators – Tabs can show lightweight states (e.g., loading) so you can tell what’s happening at a glance.
+- ~~Tab status indicators – Tabs can show lightweight states (e.g., loading) so you can tell what’s happening at a glance~~
+  - ~~Lazy-load aware (no indicator until a tab is first opened)~~
+  - ~~Green dot indicates a tab is loaded and ready~~
+  - ~~Spinner indicates active loading (click to stop)~~
+  - ~~Red dot indicates load failure (click to retry)~~
+  - ~~Clicking the status dot refreshes the tab (Shift+click = hard refresh OR just use Reload button)~~
 - Customizable themes – Dark/light modes and optional per-tab accent colors.
 - Settings panel – Simple in-app settings for theme options, per-tab colors, and quality-of-life toggles.
 - Command palette (Ctrl+K / Cmd+K) – A searchable action launcher to switch tabs, toggle settings (theme/spellcheck), and run common commands without cluttering the UI.
