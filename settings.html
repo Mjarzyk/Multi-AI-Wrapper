@@ -13,6 +13,8 @@
       --muted: #9a9a9a;
       --accent: #3b82f6;
       --border: #242424;
+      --danger: #ef4444;
+      --danger-bg: rgba(239, 68, 68, 0.12);
     }
 
     body {
@@ -189,6 +191,17 @@
       min-width: 220px;
     }
 
+    input[type="text"] {
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 14px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
     /* checkbox list */
     .checklist {
       border: 1px solid var(--border);
@@ -201,6 +214,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 14px;
       padding: 12px 14px;
       border-top: 1px solid var(--border);
     }
@@ -214,18 +228,139 @@
       cursor: pointer;
       font-size: 14px;
       font-weight: 600;
+      min-width: 0;
     }
 
     .checkrow .hint {
       color: var(--muted);
       font-size: 12px;
       font-weight: 400;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 280px;
+    }
+
+    .checkrow .left {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    .checkrow .subhint {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 400;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 420px;
+    }
+
+    .checkrow .right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
     }
 
     input[type="checkbox"] {
       width: 16px;
       height: 16px;
       accent-color: var(--accent);
+    }
+
+    .icon-btn {
+      border: 1px solid var(--border);
+      background: rgba(0,0,0,0.18);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 6px 10px;
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+    }
+
+    .icon-btn:hover {
+      background: rgba(255,255,255,0.06);
+    }
+
+    .icon-btn.danger {
+      border-color: rgba(239,68,68,0.35);
+      background: var(--danger-bg);
+      color: #ffb4b4;
+    }
+
+    .icon-btn.danger:hover {
+      border-color: rgba(239,68,68,0.55);
+      background: rgba(239, 68, 68, 0.18);
+    }
+
+    .btn {
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn:hover { background: #1d1d1d; }
+
+    .btn.primary {
+      border-color: rgba(59,130,246,0.45);
+      background: rgba(59,130,246,0.18);
+      color: #cfe2ff;
+    }
+
+    .btn.primary:hover {
+      border-color: rgba(59,130,246,0.65);
+      background: rgba(59,130,246,0.24);
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .inline-form {
+      margin-top: 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.03);
+      padding: 12px;
+      display: none;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .form-actions {
+      margin-top: 10px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    .form-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin: 0 0 6px 0;
+    }
+
+    .error-text {
+      color: #ffb4b4;
+      font-size: 12px;
+      margin-top: 10px;
+      display: none;
     }
 
     /* shortcuts list */
@@ -394,11 +529,7 @@
               </div>
 
               <select id="defaultModelSelect" aria-label="Default model">
-                <option value="chatgpt">ChatGPT</option>
-                <option value="claude">Claude</option>
-                <option value="copilot">Copilot</option>
-                <option value="gemini">Gemini</option>
-                <option value="perplexity">Perplexity</option>
+                <!-- populated dynamically -->
               </select>
             </div>
           </div>
@@ -407,48 +538,33 @@
         <!-- Models -->
         <div class="page" id="page-models">
           <div class="section">
-            <h3>Enabled models</h3>
-            <p>Disable models to remove them from the tab bar and ordering.</p>
+            <h3>Models</h3>
+            <p>Enable/disable models, delete any model, or add a new URL.</p>
 
-            <div class="checklist" id="modelsChecklist">
-              <div class="checkrow">
-                <label>
-                  <input type="checkbox" data-model="chatgpt">
-                  ChatGPT
-                </label>
-                <div class="hint">chatgpt</div>
+            <div class="checklist" id="modelsList" aria-label="Models list"></div>
+
+            <div style="margin-top: 12px; display:flex; justify-content:flex-end;">
+              <button class="btn primary" id="addModelBtn">+ Add model</button>
+            </div>
+
+            <div class="inline-form" id="addModelForm">
+              <div class="form-grid">
+                <div>
+                  <div class="form-label">Model name</div>
+                  <input id="addModelName" type="text" placeholder="e.g. DeepSeek" autocomplete="off" />
+                </div>
+
+                <div>
+                  <div class="form-label">Model URL (must start with https://)</div>
+                  <input id="addModelUrl" type="text" placeholder="https://example.com/" autocomplete="off" />
+                </div>
               </div>
 
-              <div class="checkrow">
-                <label>
-                  <input type="checkbox" data-model="claude">
-                  Claude
-                </label>
-                <div class="hint">claude</div>
-              </div>
+              <div class="error-text" id="modelsError"></div>
 
-              <div class="checkrow">
-                <label>
-                  <input type="checkbox" data-model="copilot">
-                  Copilot
-                </label>
-                <div class="hint">copilot</div>
-              </div>
-
-              <div class="checkrow">
-                <label>
-                  <input type="checkbox" data-model="gemini">
-                  Gemini
-                </label>
-                <div class="hint">gemini</div>
-              </div>
-
-              <div class="checkrow">
-                <label>
-                  <input type="checkbox" data-model="perplexity">
-                  Perplexity
-                </label>
-                <div class="hint">perplexity</div>
+              <div class="form-actions">
+                <button class="btn" id="cancelAddBtn" type="button">Cancel</button>
+                <button class="btn primary" id="saveAddBtn" type="button">Add</button>
               </div>
             </div>
           </div>
@@ -563,7 +679,9 @@
   </div>
 
   <script>
+    // -----------------------------
     // Nav switching
+    // -----------------------------
     const navItems = document.querySelectorAll(".nav-item");
     const pages = document.querySelectorAll(".page");
     const title = document.getElementById("page-title");
@@ -585,7 +703,9 @@
       window.electronAPI.closeSettings();
     });
 
+    // -----------------------------
     // Theme wiring
+    // -----------------------------
     const themeRadios = document.querySelectorAll('input[name="theme"]');
     function setThemeRadios(source) {
       themeRadios.forEach(r => r.checked = (r.value === source));
@@ -601,18 +721,108 @@
       if (payload?.source) setThemeRadios(payload.source);
     });
 
+    // -----------------------------
+    // Local caches
+    // -----------------------------
+    let lastSettings = null;
+    let lastModelsPayload = null;
+
+    function modelsById(payload) {
+      const map = Object.create(null);
+      const list = Array.isArray(payload?.models) ? payload.models : [];
+      for (const m of list) {
+        if (!m || typeof m !== "object") continue;
+        if (typeof m.id !== "string" || !m.id) continue;
+        map[m.id] = m;
+      }
+      return map;
+    }
+
+    function computeOrderedIds(payload) {
+      const order = Array.isArray(payload?.modelOrder) ? payload.modelOrder : [];
+      const enabled = new Set(Array.isArray(payload?.enabledModels) ? payload.enabledModels : []);
+      const byId = modelsById(payload);
+
+      const out = [];
+      const seen = new Set();
+
+      // enabled first, in order
+      for (const id of order) {
+        if (!byId[id]) continue;
+        if (!enabled.has(id)) continue;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        out.push(id);
+      }
+
+      // then disabled, in order
+      for (const id of order) {
+        if (!byId[id]) continue;
+        if (enabled.has(id)) continue;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        out.push(id);
+      }
+
+      // ensure any missing ids are appended
+      for (const id of Object.keys(byId)) {
+        if (seen.has(id)) continue;
+        seen.add(id);
+        out.push(id);
+      }
+
+      return out;
+    }
+
+    // -----------------------------
     // Startup behavior wiring
+    // -----------------------------
     const restoreLastToggle = document.getElementById("restoreLastToggle");
     const defaultModelRow = document.getElementById("defaultModelRow");
     const defaultModelSelect = document.getElementById("defaultModelSelect");
+
+    function renderDefaultModelOptions() {
+      if (!lastModelsPayload) return;
+
+      const byId = modelsById(lastModelsPayload);
+      const enabled = new Set(Array.isArray(lastModelsPayload.enabledModels) ? lastModelsPayload.enabledModels : []);
+
+      // only enabled models as options, in order
+      const ordered = computeOrderedIds(lastModelsPayload).filter(id => enabled.has(id) && !!byId[id]);
+
+      defaultModelSelect.innerHTML = "";
+
+      for (const id of ordered) {
+        const opt = document.createElement("option");
+        opt.value = id;
+        opt.textContent = byId[id]?.name || id;
+        defaultModelSelect.appendChild(opt);
+      }
+
+      // keep selection if possible
+      const desired = lastSettings?.defaultModel;
+      if (desired && ordered.includes(desired)) {
+        defaultModelSelect.value = desired;
+      } else if (ordered.length) {
+        defaultModelSelect.value = ordered[0];
+      }
+    }
 
     function syncStartupUI(settings) {
       const restore = !!settings?.restoreLastActive;
       restoreLastToggle.checked = restore;
       defaultModelRow.style.display = restore ? "none" : "flex";
 
-      if (settings?.defaultModel) {
-        defaultModelSelect.value = settings.defaultModel;
+      renderDefaultModelOptions();
+
+      if (!restore) {
+        const current = settings?.defaultModel;
+        const values = Array.from(defaultModelSelect.options).map(o => o.value);
+        if (current && values.includes(current)) {
+          defaultModelSelect.value = current;
+        } else if (values.length) {
+          defaultModelSelect.value = values[0];
+        }
       }
     }
 
@@ -626,31 +836,176 @@
       await window.electronAPI.setAppSettings({ defaultModel: defaultModelSelect.value });
     });
 
-    // Models enable/disable wiring
-    const modelCheckboxes = Array.from(document.querySelectorAll('#modelsChecklist input[type="checkbox"][data-model]'));
+    // -----------------------------
+    // Models page: render + wiring
+    // -----------------------------
+    const modelsListEl = document.getElementById("modelsList");
+    const addModelBtn = document.getElementById("addModelBtn");
+    const addModelForm = document.getElementById("addModelForm");
+    const addModelName = document.getElementById("addModelName");
+    const addModelUrl = document.getElementById("addModelUrl");
+    const saveAddBtn = document.getElementById("saveAddBtn");
+    const cancelAddBtn = document.getElementById("cancelAddBtn");
+    const modelsErrorEl = document.getElementById("modelsError");
 
-    function syncModelsUI(settings) {
-      const enabled = Array.isArray(settings?.enabledModels) ? settings.enabledModels : null;
-      if (!enabled) return;
-
-      const enabledSet = new Set(enabled);
-      modelCheckboxes.forEach(cb => {
-        cb.checked = enabledSet.has(cb.dataset.model);
-      });
+    function showModelsError(msg) {
+      if (!msg) {
+        modelsErrorEl.style.display = "none";
+        modelsErrorEl.textContent = "";
+        return;
+      }
+      modelsErrorEl.style.display = "block";
+      modelsErrorEl.textContent = msg;
     }
 
-    function readEnabledModelsFromUI() {
-      return modelCheckboxes.filter(cb => cb.checked).map(cb => cb.dataset.model);
+    function setAddFormOpen(open) {
+      showModelsError("");
+      addModelForm.style.display = open ? "block" : "none";
+      if (open) {
+        addModelName.focus();
+      } else {
+        addModelName.value = "";
+        addModelUrl.value = "";
+      }
     }
 
-    modelCheckboxes.forEach(cb => {
-      cb.addEventListener("change", async () => {
-        const enabledModels = readEnabledModelsFromUI();
-        await window.electronAPI.setAppSettings({ enabledModels });
-      });
+    addModelBtn.addEventListener("click", () => {
+      const isOpen = addModelForm.style.display === "block";
+      setAddFormOpen(!isOpen);
     });
 
+    cancelAddBtn.addEventListener("click", () => {
+      setAddFormOpen(false);
+    });
+
+    function renderModelsList(payload) {
+      const byId = modelsById(payload);
+      const enabled = new Set(Array.isArray(payload?.enabledModels) ? payload.enabledModels : []);
+      const ordered = computeOrderedIds(payload);
+
+      modelsListEl.innerHTML = "";
+
+      for (const id of ordered) {
+        const m = byId[id];
+        if (!m) continue;
+
+        const row = document.createElement("div");
+        row.className = "checkrow";
+        row.dataset.id = id;
+
+        const leftLabel = document.createElement("label");
+
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.dataset.model = id;
+        cb.checked = enabled.has(id);
+
+        const leftCol = document.createElement("div");
+        leftCol.className = "left";
+
+        const nameLine = document.createElement("div");
+        nameLine.textContent = m.name || id;
+
+        const urlLine = document.createElement("div");
+        urlLine.className = "subhint";
+        urlLine.textContent = m.url || "";
+
+        leftCol.appendChild(nameLine);
+        leftCol.appendChild(urlLine);
+
+        leftLabel.appendChild(cb);
+        leftLabel.appendChild(leftCol);
+
+        const right = document.createElement("div");
+        right.className = "right";
+
+        const hint = document.createElement("div");
+        hint.className = "hint";
+        hint.title = id;
+        hint.textContent = id;
+
+        right.appendChild(hint);
+
+        // Delete (ALL models now)
+        const del = document.createElement("button");
+        del.className = "icon-btn danger";
+        del.type = "button";
+        del.title = "Delete model";
+        del.textContent = "×";
+
+        del.addEventListener("click", async () => {
+          const ok = window.confirm(`Delete model "${m.name}"?`);
+          if (!ok) return;
+
+          showModelsError("");
+
+          try {
+            const res = await window.electronAPI.deleteAppModel(id);
+            if (!res?.ok) {
+              showModelsError(res?.error || "Failed to delete model.");
+            }
+          } catch {
+            showModelsError("Failed to delete model.");
+          }
+        });
+
+        right.appendChild(del);
+
+        // Enable/disable
+        cb.addEventListener("change", async () => {
+          const cbs = Array.from(modelsListEl.querySelectorAll('input[type="checkbox"][data-model]'));
+          const enabledModels = cbs.filter(x => x.checked).map(x => x.dataset.model);
+
+          showModelsError("");
+
+          try {
+            await window.electronAPI.setAppSettings({ enabledModels });
+          } catch {
+            showModelsError("Failed to update enabled models.");
+          }
+        });
+
+        row.appendChild(leftLabel);
+        row.appendChild(right);
+
+        modelsListEl.appendChild(row);
+      }
+    }
+
+    saveAddBtn.addEventListener("click", async () => {
+      const name = (addModelName.value || "").trim();
+      const url = (addModelUrl.value || "").trim();
+
+      showModelsError("");
+
+      if (!name) {
+        showModelsError("Model name is required.");
+        return;
+      }
+      if (!/^https:\/\//i.test(url)) {
+        showModelsError("Model URL must start with https://");
+        return;
+      }
+
+      saveAddBtn.disabled = true;
+
+      try {
+        const res = await window.electronAPI.addAppModel({ name, url });
+        if (!res?.ok) {
+          showModelsError(res?.error || "Failed to add model.");
+        } else {
+          setAddFormOpen(false);
+        }
+      } catch {
+        showModelsError("Failed to add model.");
+      } finally {
+        saveAddBtn.disabled = false;
+      }
+    });
+
+    // -----------------------------
     // Behavior wiring
+    // -----------------------------
     const confirmBeforeStopToggle = document.getElementById("confirmBeforeStopToggle");
     const hardReloadToggle = document.getElementById("hardReloadToggle");
 
@@ -671,7 +1026,9 @@
       await window.electronAPI.setAppSettings({ hardReloadOnRefresh: !!hardReloadToggle.checked });
     });
 
+    // -----------------------------
     // About wiring
+    // -----------------------------
     async function loadAboutInfo() {
       try {
         const info = await window.electronAPI.getAppInfo();
@@ -681,22 +1038,46 @@
       } catch {}
     }
 
-    // Initial load
-    window.electronAPI.getAppSettings().then(settings => {
-      if (settings?.themeSource) setThemeRadios(settings.themeSource);
-      syncStartupUI(settings);
-      syncModelsUI(settings);
-      syncBehaviorUI(settings);
-    });
+    // -----------------------------
+    // Initial load + live sync
+    // -----------------------------
+    async function initialLoad() {
+      try {
+        lastSettings = await window.electronAPI.getAppSettings();
+        if (lastSettings?.themeSource) setThemeRadios(lastSettings.themeSource);
+        syncBehaviorUI(lastSettings);
+      } catch {}
 
-    // Live sync
+      try {
+        lastModelsPayload = await window.electronAPI.getAppModels();
+        renderModelsList(lastModelsPayload);
+      } catch {}
+
+      if (lastSettings) {
+        syncStartupUI(lastSettings);
+      }
+
+      loadAboutInfo();
+    }
+
     window.electronAPI.onAppSettingsChanged(settings => {
+      lastSettings = settings;
       syncStartupUI(settings);
-      syncModelsUI(settings);
       syncBehaviorUI(settings);
     });
 
-    loadAboutInfo();
+    window.electronAPI.onAppModelsChanged(payload => {
+      lastModelsPayload = payload;
+      renderModelsList(payload);
+
+      if (lastSettings) {
+        syncStartupUI(lastSettings);
+      } else {
+        renderDefaultModelOptions();
+      }
+    });
+
+    initialLoad();
   </script>
 </body>
 </html>

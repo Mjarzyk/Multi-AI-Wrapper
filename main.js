@@ -15,16 +15,19 @@ const fs = require("fs");
 let mainWindow;
 let settingsWindow;
 
-// Map of model -> URL
-const MODEL_URLS = {
-  chatgpt: "https://chatgpt.com/",
-  claude: "https://claude.ai/",
-  copilot: "https://copilot.microsoft.com/",
-  gemini: "https://gemini.google.com/app",
-  perplexity: "https://www.perplexity.ai/"
-};
+// -----------------------------
+// Models catalog seed (used only when no persisted catalog exists)
+// -----------------------------
 
-const DEFAULT_MODEL_ORDER = ["chatgpt", "claude", "copilot", "gemini", "perplexity"];
+const BUILTIN_MODELS = [
+  { id: "chatgpt", name: "ChatGPT", url: "https://chatgpt.com/", builtIn: true },
+  { id: "claude", name: "Claude", url: "https://claude.ai/", builtIn: true },
+  { id: "copilot", name: "Copilot", url: "https://copilot.microsoft.com/", builtIn: true },
+  { id: "gemini", name: "Gemini", url: "https://gemini.google.com/app", builtIn: true },
+  { id: "perplexity", name: "Perplexity", url: "https://www.perplexity.ai/", builtIn: true }
+];
+
+const DEFAULT_MODEL_ORDER = BUILTIN_MODELS.map((m) => m.id);
 const STORAGE_PATH = path.join(app.getPath("userData"), "settings.json");
 
 // -----------------------------
@@ -46,46 +49,139 @@ function savePersisted(obj) {
   } catch {}
 }
 
-function normalizeEnabledModels(list) {
-  const arr = Array.isArray(list) ? list : [];
-  const seen = new Set();
-  const out = [];
-  for (const m of arr) {
-    if (!DEFAULT_MODEL_ORDER.includes(m)) continue;
-    if (seen.has(m)) continue;
-    seen.add(m);
-    out.push(m);
-  }
-  return out.length ? out : DEFAULT_MODEL_ORDER.slice();
+function isHttpsUrl(url) {
+  return typeof url === "string" && /^https:\/\//i.test(url.trim());
 }
 
-function isValidModelName(m) {
-  return typeof m === "string" && DEFAULT_MODEL_ORDER.includes(m);
+function normalizeModelsCatalog(rawModels) {
+  // IMPORTANT:
+  // - If persisted.models does NOT exist yet, we seed with BUILTIN_MODELS.
+  // - Once persisted.models exists, it becomes the source of truth (so deletions stick).
+  if (rawModels === undefined || rawModels === null) {
+    return BUILTIN_MODELS.map((m) => ({ ...m }));
+  }
+
+  const rawList = Array.isArray(rawModels)
+    ? rawModels
+    : rawModels && typeof rawModels === "object"
+      ? Object.values(rawModels)
+      : [];
+
+  const out = [];
+  const seen = new Set();
+
+  for (const item of rawList) {
+    if (!item || typeof item !== "object") continue;
+
+    const id = typeof item.id === "string" ? item.id.trim() : "";
+    if (!id) continue;
+    if (seen.has(id)) continue;
+
+    const name = typeof item.name === "string" ? item.name.trim() : "";
+    const url = typeof item.url === "string" ? item.url.trim() : "";
+    if (!name || !isHttpsUrl(url)) continue;
+
+    const builtIn = !!item.builtIn;
+    seen.add(id);
+    out.push({ id, name, url, builtIn });
+  }
+
+  // Ensure at least 1 model exists
+  if (!out.length) {
+    return BUILTIN_MODELS.map((m) => ({ ...m }));
+  }
+
+  return out;
+}
+
+function buildCatalogMap(models) {
+  const map = Object.create(null);
+  for (const m of Array.isArray(models) ? models : []) {
+    if (!m || typeof m !== "object") continue;
+    if (typeof m.id !== "string" || !m.id) continue;
+    map[m.id] = m;
+  }
+  return map;
+}
+
+function normalizeModelOrder(rawOrder, models) {
+  const catalog = buildCatalogMap(models);
+  const input = Array.isArray(rawOrder) ? rawOrder : [];
+  const seen = new Set();
+  const out = [];
+
+  for (const id of input) {
+    if (typeof id !== "string") continue;
+    if (!catalog[id]) continue;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+
+  // Append any missing catalog entries
+  for (const m of models) {
+    if (!seen.has(m.id)) {
+      seen.add(m.id);
+      out.push(m.id);
+    }
+  }
+
+  // If still empty, fall back to whatever exists
+  if (!out.length) {
+    const first = models[0]?.id;
+    return first ? [first] : DEFAULT_MODEL_ORDER.slice();
+  }
+
+  return out;
+}
+
+function normalizeEnabledModels(rawEnabled, models, modelOrder) {
+  const catalog = buildCatalogMap(models);
+  const order = Array.isArray(modelOrder) ? modelOrder : [];
+  const input = Array.isArray(rawEnabled) ? rawEnabled : [];
+  const seen = new Set();
+  const out = [];
+
+  for (const id of input) {
+    if (typeof id !== "string") continue;
+    if (!catalog[id]) continue;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+
+  if (out.length) return out;
+
+  // Fallback: enable the first model in order (ensures at least one enabled)
+  const first = order.find((id) => !!catalog[id]) || models[0]?.id;
+  return first ? [first] : DEFAULT_MODEL_ORDER.slice();
 }
 
 // Back-compat note:
 // Existing keys: modelOrder, activeModel, themeSource
-// New keys added: enabledModels, restoreLastActive, defaultModel, confirmBeforeStop, hardReloadOnRefresh
+// Existing keys we continue honoring: enabledModels, restoreLastActive, defaultModel, confirmBeforeStop, hardReloadOnRefresh
+// New key added: models (catalog)
 const persisted = loadPersisted();
 
-let MODEL_ORDER =
-  Array.isArray(persisted.modelOrder) && persisted.modelOrder.length
-    ? persisted.modelOrder.filter((m) => DEFAULT_MODEL_ORDER.includes(m))
-    : DEFAULT_MODEL_ORDER.slice();
+// Models catalog (array of { id, name, url, builtIn? })
+let MODELS = normalizeModelsCatalog(persisted.models);
+let MODELS_BY_ID = buildCatalogMap(MODELS);
 
-if (MODEL_ORDER.length !== DEFAULT_MODEL_ORDER.length) {
-  for (const m of DEFAULT_MODEL_ORDER) {
-    if (!MODEL_ORDER.includes(m)) MODEL_ORDER.push(m);
-  }
-}
+// Order + enabled should be normalized against the catalog.
+let MODEL_ORDER = normalizeModelOrder(
+  Array.isArray(persisted.modelOrder) && persisted.modelOrder.length ? persisted.modelOrder : DEFAULT_MODEL_ORDER,
+  MODELS
+);
 
-let ENABLED_MODELS = normalizeEnabledModels(persisted.enabledModels);
+let ENABLED_MODELS = normalizeEnabledModels(persisted.enabledModels, MODELS, MODEL_ORDER);
 
 let RESTORE_LAST_ACTIVE_ON_LAUNCH =
   typeof persisted.restoreLastActive === "boolean" ? persisted.restoreLastActive : true;
 
 let DEFAULT_MODEL =
-  isValidModelName(persisted.defaultModel) ? persisted.defaultModel : DEFAULT_MODEL_ORDER[0];
+  typeof persisted.defaultModel === "string" && MODELS_BY_ID[persisted.defaultModel]
+    ? persisted.defaultModel
+    : MODEL_ORDER[0] || MODELS[0]?.id || DEFAULT_MODEL_ORDER[0];
 
 let CONFIRM_BEFORE_STOP =
   typeof persisted.confirmBeforeStop === "boolean" ? persisted.confirmBeforeStop : false;
@@ -102,18 +198,63 @@ function getEnabledSet() {
 
 function getVisibleModelOrder() {
   const enabled = getEnabledSet();
-  return MODEL_ORDER.filter((m) => enabled.has(m));
+  return MODEL_ORDER.filter((id) => enabled.has(id) && !!MODELS_BY_ID[id]);
+}
+
+function getModelsPayload() {
+  return {
+    models: MODELS.map((m) => ({ ...m })),
+    modelOrder: MODEL_ORDER.slice(),
+    enabledModels: ENABLED_MODELS.slice(),
+    activeModel
+  };
+}
+
+function broadcastModels() {
+  const payload = getModelsPayload();
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    try {
+      mainWindow.webContents.send("app-models-changed", payload);
+    } catch {}
+  }
+
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    try {
+      settingsWindow.webContents.send("app-models-changed", payload);
+    } catch {}
+  }
+}
+
+function persistModelsState(partial) {
+  savePersisted({
+    ...loadPersisted(),
+    ...partial
+  });
 }
 
 function ensureActiveModelIsValid() {
-  const visible = getVisibleModelOrder();
-  if (!visible.length) {
-    // should not happen due to normalizeEnabledModels fallback, but guard anyway
-    ENABLED_MODELS = DEFAULT_MODEL_ORDER.slice();
+  // Ensure we always have at least one enabled model that exists in the catalog.
+  const enabledExisting = ENABLED_MODELS.filter((id) => !!MODELS_BY_ID[id]);
+  if (!enabledExisting.length) {
+    const first = MODEL_ORDER.find((id) => !!MODELS_BY_ID[id]) || MODELS[0]?.id;
+    ENABLED_MODELS = first ? [first] : [];
+    persistModelsState({ enabledModels: ENABLED_MODELS.slice() });
+  } else if (enabledExisting.length !== ENABLED_MODELS.length) {
+    ENABLED_MODELS = enabledExisting;
+    persistModelsState({ enabledModels: ENABLED_MODELS.slice() });
   }
+
+  // Ensure order only includes existing ids, and append missing.
+  const normalizedOrder = normalizeModelOrder(MODEL_ORDER, MODELS);
+  if (normalizedOrder.join("|") !== MODEL_ORDER.join("|")) {
+    MODEL_ORDER = normalizedOrder;
+    persistModelsState({ modelOrder: MODEL_ORDER.slice() });
+  }
+
   const enabled = getEnabledSet();
-  if (!enabled.has(activeModel) || !MODEL_ORDER.includes(activeModel)) {
-    activeModel = getVisibleModelOrder()[0] || MODEL_ORDER[0];
+  if (!enabled.has(activeModel) || !MODELS_BY_ID[activeModel]) {
+    activeModel = getVisibleModelOrder()[0] || MODEL_ORDER[0] || MODELS[0]?.id || null;
   }
 }
 
@@ -121,12 +262,17 @@ function computeInitialActiveModel() {
   const enabled = getEnabledSet();
 
   const candidate = RESTORE_LAST_ACTIVE_ON_LAUNCH ? persisted.activeModel : DEFAULT_MODEL;
-  if (isValidModelName(candidate) && enabled.has(candidate) && MODEL_ORDER.includes(candidate)) {
+  if (
+    typeof candidate === "string" &&
+    MODELS_BY_ID[candidate] &&
+    enabled.has(candidate) &&
+    MODEL_ORDER.includes(candidate)
+  ) {
     return candidate;
   }
 
   const visible = getVisibleModelOrder();
-  return visible[0] || MODEL_ORDER[0];
+  return visible[0] || MODEL_ORDER[0] || MODELS[0]?.id || null;
 }
 
 let activeModel = computeInitialActiveModel();
@@ -137,7 +283,7 @@ let activeModel = computeInitialActiveModel();
 
 function getAppSettingsPayload() {
   return {
-    themeSource: THEME_SOURCE, // still single source of truth
+    themeSource: THEME_SOURCE, // single source of truth
     enabledModels: ENABLED_MODELS.slice(),
     restoreLastActive: !!RESTORE_LAST_ACTIVE_ON_LAUNCH,
     defaultModel: DEFAULT_MODEL,
@@ -173,21 +319,19 @@ function applySettingsPatch(patch) {
 
   const toPersist = {};
 
-  // Theme stays handled via existing theme:set pathway (keeps toggle behavior + broadcasting)
   if (typeof patch.themeSource === "string") {
     setThemeSource(patch.themeSource);
-    // setThemeSource already persists themeSource and broadcasts theme-changed
+    // theme-changed will be broadcast on nativeTheme 'updated'
   }
 
   if (Array.isArray(patch.enabledModels)) {
-    ENABLED_MODELS = normalizeEnabledModels(patch.enabledModels);
+    ENABLED_MODELS = normalizeEnabledModels(patch.enabledModels, MODELS, MODEL_ORDER);
     toPersist.enabledModels = ENABLED_MODELS.slice();
 
-    // If the active model becomes disabled, switch to first enabled
     ensureActiveModelIsValid();
-    // Tabs should reflect enabled models
     notifyModelOrder(getVisibleModelOrder());
     notifyActiveModel(activeModel);
+    broadcastModels();
   }
 
   if (typeof patch.restoreLastActive === "boolean") {
@@ -195,7 +339,7 @@ function applySettingsPatch(patch) {
     toPersist.restoreLastActive = RESTORE_LAST_ACTIVE_ON_LAUNCH;
   }
 
-  if (typeof patch.defaultModel === "string" && isValidModelName(patch.defaultModel)) {
+  if (typeof patch.defaultModel === "string" && MODELS_BY_ID[patch.defaultModel]) {
     DEFAULT_MODEL = patch.defaultModel;
     toPersist.defaultModel = DEFAULT_MODEL;
   }
@@ -330,13 +474,19 @@ function setThemeSource(source) {
     themeSource: THEME_SOURCE
   });
 
+  // NOTE: we do NOT broadcast theme-changed here.
+  // We wait for nativeTheme 'updated' so the renderer flips at the same boundary
+  // the BrowserViews are reacting to.
   syncNativeTheme();
-  broadcastTheme();
+
+  // still broadcast app settings immediately (themeSource value for settings UI state, etc.)
   broadcastAppSettings();
 }
 
+// CHANGED: broadcast theme-changed on *every* nativeTheme update.
+// Previously this only broadcast when THEME_SOURCE === "system".
 nativeTheme.on("updated", () => {
-  if (THEME_SOURCE === "system") broadcastTheme();
+  broadcastTheme();
 });
 
 // -----------------------------
@@ -344,7 +494,8 @@ nativeTheme.on("updated", () => {
 // -----------------------------
 
 function createModelView(modelName) {
-  const url = MODEL_URLS[modelName];
+  const model = MODELS_BY_ID[modelName];
+  const url = model?.url;
   if (!url) return null;
 
   const view = new BrowserView({
@@ -414,6 +565,7 @@ function showView(modelName) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
 
   const enabled = getEnabledSet();
+  if (!MODELS_BY_ID[modelName]) return;
   if (!enabled.has(modelName)) return;
   if (!MODEL_ORDER.includes(modelName)) return;
 
@@ -514,9 +666,18 @@ function createSettingsWindow() {
     if (!settingsWindow || settingsWindow.isDestroyed()) return;
     syncSettingsBounds();
     settingsWindow.show();
-    try { settingsWindow.focus(); } catch {}
-    try { settingsWindow.webContents.send("theme-changed", getThemePayload()); } catch {}
-    try { settingsWindow.webContents.send("app-settings-changed", getAppSettingsPayload()); } catch {}
+    try {
+      settingsWindow.focus();
+    } catch {}
+    try {
+      settingsWindow.webContents.send("theme-changed", getThemePayload());
+    } catch {}
+    try {
+      settingsWindow.webContents.send("app-settings-changed", getAppSettingsPayload());
+    } catch {}
+    try {
+      settingsWindow.webContents.send("app-models-changed", getModelsPayload());
+    } catch {}
   });
 
   settingsWindow.on("closed", () => {
@@ -534,13 +695,17 @@ function openSettingsWindow() {
   } else {
     syncSettingsBounds();
     settingsWindow.show();
-    try { settingsWindow.focus(); } catch {}
+    try {
+      settingsWindow.focus();
+    } catch {}
   }
 }
 
 function closeSettingsWindow() {
   if (!settingsWindow || settingsWindow.isDestroyed()) return;
-  try { settingsWindow.close(); } catch {}
+  try {
+    settingsWindow.close();
+  } catch {}
 }
 
 // -----------------------------
@@ -570,19 +735,34 @@ function createWindow() {
 
   // Send initial UI state AFTER the renderer has loaded (prevents missing IPC messages)
   mainWindow.webContents.on("did-finish-load", () => {
-    try { notifyModelOrder(getVisibleModelOrder()); } catch {}
-    try { notifyActiveModel(activeModel); } catch {}
-    try { notifyAllModelLoadStates(); } catch {}
-    try { broadcastTheme(); } catch {}
-    try { broadcastAppSettings(); } catch {}
+    try {
+      notifyModelOrder(getVisibleModelOrder());
+    } catch {}
+    try {
+      notifyActiveModel(activeModel);
+    } catch {}
+    try {
+      notifyAllModelLoadStates();
+    } catch {}
+    try {
+      broadcastTheme();
+    } catch {}
+    try {
+      broadcastAppSettings();
+    } catch {}
+    try {
+      broadcastModels();
+    } catch {}
   });
 
   // initial view
   ensureActiveModelIsValid();
-  const initialView = createModelView(activeModel);
-  if (initialView) {
-    mainWindow.setBrowserView(initialView);
-    resizeActiveView(initialView);
+  if (activeModel) {
+    const initialView = createModelView(activeModel);
+    if (initialView) {
+      mainWindow.setBrowserView(initialView);
+      resizeActiveView(initialView);
+    }
   }
 
   mainWindow.on("resize", () => resizeActiveView());
@@ -593,12 +773,7 @@ function createWindow() {
   const template = [
     {
       label: "App",
-      submenu: [
-        { role: "reload" },
-        { role: "toggleDevTools" },
-        { type: "separator" },
-        { role: "quit" }
-      ]
+      submenu: [{ role: "reload" }, { role: "toggleDevTools" }, { type: "separator" }, { role: "quit" }]
     }
   ];
 
@@ -617,25 +792,39 @@ ipcMain.on("set-model-order", (_event, order) => {
   if (!Array.isArray(order)) return;
 
   const enabled = getEnabledSet();
-  const filtered = order.filter((m) => DEFAULT_MODEL_ORDER.includes(m));
-  const requestedEnabled = filtered.filter((m) => enabled.has(m));
 
-  for (const m of DEFAULT_MODEL_ORDER) {
-    if (enabled.has(m) && !requestedEnabled.includes(m)) requestedEnabled.push(m);
+  // Renderer sends the visible (enabled) order. Normalize against current catalog + enabled set.
+  const requestedEnabled = [];
+  const seen = new Set();
+
+  for (const id of order) {
+    if (typeof id !== "string") continue;
+    if (!MODELS_BY_ID[id]) continue;
+    if (!enabled.has(id)) continue;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    requestedEnabled.push(id);
   }
 
-  const disabledInPrev = MODEL_ORDER.filter((m) => !enabled.has(m));
+  // Ensure every enabled model exists exactly once in the enabled portion.
+  for (const id of MODEL_ORDER) {
+    if (!MODELS_BY_ID[id]) continue;
+    if (!enabled.has(id)) continue;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    requestedEnabled.push(id);
+  }
+
+  const disabledInPrev = MODEL_ORDER.filter((id) => !!MODELS_BY_ID[id] && !enabled.has(id));
   MODEL_ORDER = requestedEnabled.concat(disabledInPrev);
 
-  savePersisted({
-    ...loadPersisted(),
-    modelOrder: MODEL_ORDER
-  });
+  persistModelsState({ modelOrder: MODEL_ORDER.slice() });
 
   ensureActiveModelIsValid();
 
   notifyModelOrder(getVisibleModelOrder());
   notifyActiveModel(activeModel);
+  broadcastModels();
 });
 
 ipcMain.on("refresh-active", (_event, payload) => {
@@ -662,6 +851,123 @@ ipcMain.handle("theme:set", (_event, source) => {
 // app settings (for the Settings UI)
 ipcMain.handle("appSettings:get", () => getAppSettingsPayload());
 ipcMain.handle("appSettings:set", (_event, patch) => applySettingsPatch(patch));
+
+// models catalog (for Settings UI)
+ipcMain.handle("appModels:get", () => getModelsPayload());
+
+ipcMain.handle("appModels:add", (_event, payload) => {
+  const name = typeof payload?.name === "string" ? payload.name.trim() : "";
+  const url = typeof payload?.url === "string" ? payload.url.trim() : "";
+
+  if (!name) return { ok: false, error: "Model name is required." };
+  if (!isHttpsUrl(url)) return { ok: false, error: "Model URL must start with https://." };
+
+  const base =
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "")
+      .slice(0, 32) || "custom";
+
+  let id = `custom-${base}-${Date.now()}`;
+  while (MODELS_BY_ID[id]) id = `custom-${base}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+
+  const model = { id, name, url, builtIn: false };
+
+  MODELS = [...MODELS, model];
+  MODELS_BY_ID = buildCatalogMap(MODELS);
+
+  MODEL_ORDER = normalizeModelOrder([...MODEL_ORDER, id], MODELS);
+  if (!ENABLED_MODELS.includes(id)) {
+    ENABLED_MODELS = [...ENABLED_MODELS, id];
+  }
+  ENABLED_MODELS = normalizeEnabledModels(ENABLED_MODELS, MODELS, MODEL_ORDER);
+
+  persistModelsState({
+    models: MODELS.map((m) => ({ ...m })),
+    modelOrder: MODEL_ORDER.slice(),
+    enabledModels: ENABLED_MODELS.slice()
+  });
+
+  ensureActiveModelIsValid();
+
+  notifyModelOrder(getVisibleModelOrder());
+  notifyActiveModel(activeModel);
+  broadcastAppSettings();
+  broadcastModels();
+
+  return { ok: true, payload: getModelsPayload() };
+});
+
+function destroyModelView(modelId) {
+  const view = views[modelId];
+  if (!view) return;
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    try {
+      const current = mainWindow.getBrowserView();
+      if (current === view) {
+        mainWindow.setBrowserView(null);
+      }
+    } catch {}
+  }
+
+  try {
+    if (view.webContents && !view.webContents.isDestroyed()) {
+      view.webContents.destroy();
+    }
+  } catch {}
+
+  delete views[modelId];
+  delete modelLoadState[modelId];
+}
+
+ipcMain.handle("appModels:delete", (_event, payload) => {
+  const id = typeof payload?.id === "string" ? payload.id : "";
+
+  if (!id || !MODELS_BY_ID[id]) return { ok: false, error: "Unknown model id." };
+
+  // Prevent deleting the last remaining model
+  if (MODELS.length <= 1) return { ok: false, error: "You must keep at least one model." };
+
+  MODELS = MODELS.filter((m) => m.id !== id);
+  MODELS_BY_ID = buildCatalogMap(MODELS);
+
+  MODEL_ORDER = MODEL_ORDER.filter((mid) => mid !== id);
+  ENABLED_MODELS = ENABLED_MODELS.filter((mid) => mid !== id);
+
+  destroyModelView(id);
+
+  MODEL_ORDER = normalizeModelOrder(MODEL_ORDER, MODELS);
+  ENABLED_MODELS = normalizeEnabledModels(ENABLED_MODELS, MODELS, MODEL_ORDER);
+
+  if (activeModel === id) {
+    activeModel = getVisibleModelOrder()[0] || MODEL_ORDER[0] || MODELS[0]?.id || null;
+    persistModelsState({ activeModel });
+  }
+
+  persistModelsState({
+    models: MODELS.map((m) => ({ ...m })),
+    modelOrder: MODEL_ORDER.slice(),
+    enabledModels: ENABLED_MODELS.slice(),
+    activeModel
+  });
+
+  ensureActiveModelIsValid();
+
+  try {
+    if (mainWindow && !mainWindow.isDestroyed() && activeModel) {
+      showView(activeModel);
+    }
+  } catch {}
+
+  notifyModelOrder(getVisibleModelOrder());
+  notifyActiveModel(activeModel);
+  broadcastAppSettings();
+  broadcastModels();
+
+  return { ok: true, payload: getModelsPayload() };
+});
 
 ipcMain.handle("appInfo:get", () => {
   return {

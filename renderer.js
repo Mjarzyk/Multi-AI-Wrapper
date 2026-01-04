@@ -49,8 +49,72 @@ function initAppSettings() {
 // THEME
 // -----------------------------
 
+let themeShieldEl = null;
+let themeShieldTimer = null;
+
+function getTopBarHeight() {
+  const bar = document.getElementById("top-bar");
+  if (!bar) return 48;
+  const h = Math.max(0, Math.round(bar.getBoundingClientRect().height));
+  return h || 48;
+}
+
+function ensureThemeShield() {
+  if (themeShieldEl && document.body.contains(themeShieldEl)) return themeShieldEl;
+
+  const el = document.createElement("div");
+  el.id = "theme-shield";
+  el.style.position = "fixed";
+  el.style.left = "0";
+  el.style.right = "0";
+  el.style.bottom = "0";
+  el.style.top = `${getTopBarHeight()}px`;
+  el.style.background = "var(--bg)";
+  el.style.pointerEvents = "none";
+  el.style.zIndex = "9999";
+  el.style.opacity = "0";
+  el.style.display = "none";
+  el.style.transition = "opacity 120ms linear";
+
+  document.body.appendChild(el);
+  themeShieldEl = el;
+  return el;
+}
+
+// Briefly cover the BrowserView area so the theme switch feels instant even if the BrowserView repaints late.
+function flashThemeShield() {
+  const el = ensureThemeShield();
+
+  // keep it aligned if bar height changes
+  el.style.top = `${getTopBarHeight()}px`;
+
+  if (themeShieldTimer) {
+    clearTimeout(themeShieldTimer);
+    themeShieldTimer = null;
+  }
+
+  el.style.display = "block";
+  // force a layout so the transition reliably runs
+  // eslint-disable-next-line no-unused-expressions
+  el.offsetHeight;
+
+  el.style.opacity = "1";
+
+  // hide shortly after; tweak if you want more/less masking
+  themeShieldTimer = setTimeout(() => {
+    el.style.opacity = "0";
+    themeShieldTimer = setTimeout(() => {
+      el.style.display = "none";
+      themeShieldTimer = null;
+    }, 140);
+  }, 160);
+}
+
 function applyThemeToDOM(payload) {
   // main sends: { source: "system"|"light"|"dark", shouldUseDarkColors: boolean }
+  // Show shield BEFORE flipping vars so the content region never "lags" visibly.
+  flashThemeShield();
+
   const effective = payload && payload.shouldUseDarkColors ? "dark" : "light";
   document.documentElement.setAttribute("data-theme", effective);
 }
@@ -79,7 +143,6 @@ function initThemeToggle() {
       }
 
       const updated = await window.electronAPI.setTheme(nextSource);
-      applyThemeToDOM(updated);
     } catch {}
   });
 

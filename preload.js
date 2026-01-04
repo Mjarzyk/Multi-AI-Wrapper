@@ -27,6 +27,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("app-settings-changed", (_event, payload) => callback(payload));
   },
 
+  // models catalog (Settings UI / dynamic tabs)
+  getAppModels: () => ipcRenderer.invoke("appModels:get"),
+  addAppModel: (model) => ipcRenderer.invoke("appModels:add", model),
+  deleteAppModel: (id) => ipcRenderer.invoke("appModels:delete", { id }),
+  onAppModelsChanged: (callback) => {
+    ipcRenderer.on("app-models-changed", (_event, payload) => callback(payload));
+  },
+
   // about/info
   getAppInfo: () => ipcRenderer.invoke("appInfo:get"),
 
