@@ -321,7 +321,6 @@ function applySettingsPatch(patch) {
 
   if (typeof patch.themeSource === "string") {
     setThemeSource(patch.themeSource);
-    // theme-changed will be broadcast on nativeTheme 'updated'
   }
 
   if (Array.isArray(patch.enabledModels)) {
@@ -351,7 +350,7 @@ function applySettingsPatch(patch) {
 
   if (typeof patch.hardReloadOnRefresh === "boolean") {
     HARD_RELOAD_ON_REFRESH = patch.hardReloadOnRefresh;
-    toPersist.hardReloadOnRefresh = HARD_RELOAD_ON_REFRESH;
+    toPersist.hardReloadOnRefresh = !!HARD_RELOAD_ON_REFRESH;
   }
 
   if (Object.keys(toPersist).length) {
@@ -367,8 +366,9 @@ function applySettingsPatch(patch) {
 // -----------------------------
 
 const views = Object.create(null);
+// Track which views have been added to the window (add-once policy)
+const addedViews = new Set();
 
-// { [model]: { initialized: boolean, loading: boolean, error: boolean } }
 const modelLoadState = Object.create(null);
 
 function ensureLoadState(modelName) {
@@ -474,17 +474,10 @@ function setThemeSource(source) {
     themeSource: THEME_SOURCE
   });
 
-  // NOTE: we do NOT broadcast theme-changed here.
-  // We wait for nativeTheme 'updated' so the renderer flips at the same boundary
-  // the BrowserViews are reacting to.
   syncNativeTheme();
-
-  // still broadcast app settings immediately (themeSource value for settings UI state, etc.)
   broadcastAppSettings();
 }
 
-// CHANGED: broadcast theme-changed on *every* nativeTheme update.
-// Previously this only broadcast when THEME_SOURCE === "system".
 nativeTheme.on("updated", () => {
   broadcastTheme();
 });
@@ -542,23 +535,55 @@ function createModelView(modelName) {
   return view;
 }
 
-function resizeActiveView(viewOverride) {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-
-  const view = viewOverride || mainWindow.getBrowserView();
-  if (!view) return;
-
-  const [winWidth, winHeight] = mainWindow.getSize();
+function getActiveBounds() {
+  if (!mainWindow || mainWindow.isDestroyed()) return null;
+  const { width, height } = mainWindow.getContentBounds();
   const topBarHeight = 48;
-
-  view.setBounds({
+  return {
     x: 0,
     y: topBarHeight,
-    width: winWidth,
-    height: Math.max(0, winHeight - topBarHeight)
-  });
+    width,
+    height: Math.max(0, height - topBarHeight)
+  };
+}
 
-  view.setAutoResize({ width: true, height: true });
+function hideView(view) {
+  try {
+    view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+  } catch {}
+}
+
+function showOnlyView(activeView) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const bounds = getActiveBounds();
+  if (!bounds) return;
+
+  // Hide everything else
+  for (const v of addedViews) {
+    if (v !== activeView) hideView(v);
+  }
+
+  // Show active
+  try {
+    activeView.setBounds(bounds);
+    activeView.setAutoResize({ width: true, height: true });
+  } catch {}
+}
+
+function ensureViewAddedOnce(view) {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  if (!view) return false;
+
+  if (addedViews.has(view)) return true;
+
+  // Add ONLY once per view (prevents BrowserWindow 'closed' listener accumulation)
+  try {
+    mainWindow.addBrowserView(view);
+    addedViews.add(view);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function showView(modelName) {
@@ -580,8 +605,8 @@ function showView(modelName) {
     activeModel
   });
 
-  mainWindow.setBrowserView(view);
-  resizeActiveView(view);
+  if (!ensureViewAddedOnce(view)) return;
+  showOnlyView(view);
 
   notifyActiveModel(activeModel);
 }
@@ -709,150 +734,9 @@ function closeSettingsWindow() {
 }
 
 // -----------------------------
-// Main window
+// Models: IPC (Settings UI)
 // -----------------------------
 
-function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    minWidth: 900,
-    minHeight: 600,
-    backgroundColor: "#111111",
-    title: "Multi-AI Cockpit",
-    webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
-      contextIsolation: true,
-      nodeIntegration: false
-    }
-  });
-
-  // Keep Settings window aligned with the main window (added once to avoid listener leaks)
-  mainWindow.on("move", syncSettingsBounds);
-  mainWindow.on("resize", syncSettingsBounds);
-
-  mainWindow.loadFile(path.join(__dirname, "index.html"));
-
-  // Send initial UI state AFTER the renderer has loaded (prevents missing IPC messages)
-  mainWindow.webContents.on("did-finish-load", () => {
-    try {
-      notifyModelOrder(getVisibleModelOrder());
-    } catch {}
-    try {
-      notifyActiveModel(activeModel);
-    } catch {}
-    try {
-      notifyAllModelLoadStates();
-    } catch {}
-    try {
-      broadcastTheme();
-    } catch {}
-    try {
-      broadcastAppSettings();
-    } catch {}
-    try {
-      broadcastModels();
-    } catch {}
-  });
-
-  // initial view
-  ensureActiveModelIsValid();
-  if (activeModel) {
-    const initialView = createModelView(activeModel);
-    if (initialView) {
-      mainWindow.setBrowserView(initialView);
-      resizeActiveView(initialView);
-    }
-  }
-
-  mainWindow.on("resize", () => resizeActiveView());
-  mainWindow.on("closed", () => {
-    mainWindow = null;
-  });
-
-  const template = [
-    {
-      label: "App",
-      submenu: [{ role: "reload" }, { role: "toggleDevTools" }, { type: "separator" }, { role: "quit" }]
-    }
-  ];
-
-  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
-}
-
-// -----------------------------
-// IPC
-// -----------------------------
-
-ipcMain.on("switch-model", (_event, modelName) => {
-  showView(modelName);
-});
-
-ipcMain.on("set-model-order", (_event, order) => {
-  if (!Array.isArray(order)) return;
-
-  const enabled = getEnabledSet();
-
-  // Renderer sends the visible (enabled) order. Normalize against current catalog + enabled set.
-  const requestedEnabled = [];
-  const seen = new Set();
-
-  for (const id of order) {
-    if (typeof id !== "string") continue;
-    if (!MODELS_BY_ID[id]) continue;
-    if (!enabled.has(id)) continue;
-    if (seen.has(id)) continue;
-    seen.add(id);
-    requestedEnabled.push(id);
-  }
-
-  // Ensure every enabled model exists exactly once in the enabled portion.
-  for (const id of MODEL_ORDER) {
-    if (!MODELS_BY_ID[id]) continue;
-    if (!enabled.has(id)) continue;
-    if (seen.has(id)) continue;
-    seen.add(id);
-    requestedEnabled.push(id);
-  }
-
-  const disabledInPrev = MODEL_ORDER.filter((id) => !!MODELS_BY_ID[id] && !enabled.has(id));
-  MODEL_ORDER = requestedEnabled.concat(disabledInPrev);
-
-  persistModelsState({ modelOrder: MODEL_ORDER.slice() });
-
-  ensureActiveModelIsValid();
-
-  notifyModelOrder(getVisibleModelOrder());
-  notifyActiveModel(activeModel);
-  broadcastModels();
-});
-
-ipcMain.on("refresh-active", (_event, payload) => {
-  refreshModel(activeModel, !!payload?.hard);
-});
-
-ipcMain.on("refresh-model", (_event, payload) => {
-  if (!payload || !payload.modelName) return;
-  refreshModel(payload.modelName, !!payload.hard);
-});
-
-ipcMain.on("stop-model", (_event, payload) => {
-  if (!payload || !payload.modelName) return;
-  stopModel(payload.modelName);
-});
-
-// theme
-ipcMain.handle("theme:get", () => getThemePayload());
-ipcMain.handle("theme:set", (_event, source) => {
-  setThemeSource(source);
-  return getThemePayload();
-});
-
-// app settings (for the Settings UI)
-ipcMain.handle("appSettings:get", () => getAppSettingsPayload());
-ipcMain.handle("appSettings:set", (_event, patch) => applySettingsPatch(patch));
-
-// models catalog (for Settings UI)
 ipcMain.handle("appModels:get", () => getModelsPayload());
 
 ipcMain.handle("appModels:add", (_event, payload) => {
@@ -905,9 +789,8 @@ function destroyModelView(modelId) {
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     try {
-      const current = mainWindow.getBrowserView();
-      if (current === view) {
-        mainWindow.setBrowserView(null);
+      if (addedViews.has(view)) {
+        mainWindow.removeBrowserView(view);
       }
     } catch {}
   }
@@ -918,6 +801,7 @@ function destroyModelView(modelId) {
     }
   } catch {}
 
+  addedViews.delete(view);
   delete views[modelId];
   delete modelLoadState[modelId];
 }
@@ -926,8 +810,6 @@ ipcMain.handle("appModels:delete", (_event, payload) => {
   const id = typeof payload?.id === "string" ? payload.id : "";
 
   if (!id || !MODELS_BY_ID[id]) return { ok: false, error: "Unknown model id." };
-
-  // Prevent deleting the last remaining model
   if (MODELS.length <= 1) return { ok: false, error: "You must keep at least one model." };
 
   MODELS = MODELS.filter((m) => m.id !== id);
@@ -986,6 +868,148 @@ ipcMain.handle("settings:open", () => {
 ipcMain.on("settings:close", () => {
   closeSettingsWindow();
 });
+
+// -----------------------------
+// IPC
+// -----------------------------
+
+ipcMain.on("switch-model", (_event, modelName) => {
+  showView(modelName);
+});
+
+ipcMain.on("set-model-order", (_event, order) => {
+  if (!Array.isArray(order)) return;
+
+  const enabled = getEnabledSet();
+
+  const requestedEnabled = [];
+  const seen = new Set();
+
+  for (const id of order) {
+    if (typeof id !== "string") continue;
+    if (!MODELS_BY_ID[id]) continue;
+    if (!enabled.has(id)) continue;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    requestedEnabled.push(id);
+  }
+
+  for (const id of MODEL_ORDER) {
+    if (!MODELS_BY_ID[id]) continue;
+    if (!enabled.has(id)) continue;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    requestedEnabled.push(id);
+  }
+
+  const disabledInPrev = MODEL_ORDER.filter((id) => !!MODELS_BY_ID[id] && !enabled.has(id));
+  MODEL_ORDER = requestedEnabled.concat(disabledInPrev);
+
+  persistModelsState({ modelOrder: MODEL_ORDER.slice() });
+
+  ensureActiveModelIsValid();
+
+  notifyModelOrder(getVisibleModelOrder());
+  notifyActiveModel(activeModel);
+  broadcastModels();
+});
+
+ipcMain.on("refresh-active", (_event, payload) => {
+  refreshModel(activeModel, !!payload?.hard);
+});
+
+ipcMain.on("refresh-model", (_event, payload) => {
+  if (!payload || !payload.modelName) return;
+  refreshModel(payload.modelName, !!payload.hard);
+});
+
+ipcMain.on("stop-model", (_event, payload) => {
+  if (!payload || !payload.modelName) return;
+  stopModel(payload.modelName);
+});
+
+// theme
+ipcMain.handle("theme:get", () => getThemePayload());
+ipcMain.handle("theme:set", (_event, source) => {
+  setThemeSource(source);
+  return getThemePayload();
+});
+
+// app settings (for the Settings UI)
+ipcMain.handle("appSettings:get", () => getAppSettingsPayload());
+ipcMain.handle("appSettings:set", (_event, patch) => applySettingsPatch(patch));
+
+// -----------------------------
+// Window + menu
+// -----------------------------
+
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 1280,
+    height: 800,
+    minWidth: 900,
+    minHeight: 600,
+    backgroundColor: "#111111",
+    title: "Multi-AI Cockpit",
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+
+  mainWindow.on("move", syncSettingsBounds);
+  mainWindow.on("resize", () => {
+    syncSettingsBounds();
+
+    const activeView = views[activeModel];
+    if (activeView && addedViews.has(activeView)) {
+      showOnlyView(activeView);
+    }
+  });
+
+  mainWindow.loadFile(path.join(__dirname, "index.html"));
+
+  mainWindow.webContents.on("did-finish-load", () => {
+    try {
+      notifyModelOrder(getVisibleModelOrder());
+    } catch {}
+    try {
+      notifyActiveModel(activeModel);
+    } catch {}
+    try {
+      notifyAllModelLoadStates();
+    } catch {}
+    try {
+      broadcastTheme();
+    } catch {}
+    try {
+      broadcastAppSettings();
+    } catch {}
+    try {
+      broadcastModels();
+    } catch {}
+  });
+
+  ensureActiveModelIsValid();
+  if (activeModel) {
+    showView(activeModel);
+  }
+
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+    addedViews.clear();
+  });
+
+  const template = [
+    {
+      label: "App",
+      submenu: [{ role: "reload" }, { role: "toggleDevTools" }, { type: "separator" }, { role: "quit" }]
+    }
+  ];
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
 
 // -----------------------------
 // App lifecycle
