@@ -9,6 +9,7 @@ Supported services:
 - Copilot
 - Gemini
 - Perplexity
+- Add your own URL to a tab (requires https://)
 
 > Built collaboratively with the help of AI tools.
 
