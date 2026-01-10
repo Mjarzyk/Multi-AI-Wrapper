@@ -107,56 +107,6 @@ You sign in inside each tab just like you would in a normal browser.
 
 ---
 
-## For developers / contributors
-
-If you want to modify or build the app yourself, you’ll need:
-
-- Node.js 20+
-- npm
-- Git
-
-### Clone and install
-
-```bash
-git clone https://github.com/Mjarzyk/Multi-AI-Wrapper.git
-cd Multi-AI-Wrapper
-npm install
-```
-
-### Run in development
-
-```bash
-npm start
-```
-
-### Package a Windows build (from Windows)
-
-```bash
-npm run package-win
-```
-
-The packaged app will be in:
-
-```
-dist/MultiAICockpit-win32-x64/
-```
-
-The `MultiAICockpit.exe` in that folder is what you distribute to Windows users (along with the rest of the folder).
-
-### Package a macOS build (from macOS or CI)
-
-```bash
-npm run package-mac
-```
-
-On macOS or GitHub Actions, this creates:
-
-```
-dist/MultiAICockpit-darwin-universal/
-```
-
-The `MultiAICockpit.app` inside that folder is the macOS app.
-
 ### Status
 
 This is an early, experimental tool intended for personal use and tinkering. Expect rough edges.
