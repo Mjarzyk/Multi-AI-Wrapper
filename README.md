@@ -114,19 +114,18 @@ This is an early, experimental tool intended for personal use and tinkering. Exp
 
 ### Planned improvements
 
-- ~~Prebuilt releases for Windows and macOS attached to GitHub Releases~~
+- ~~Prebuilt releases for Windows, Linux and macOS attached to GitHub Releases~~
 - ~~Keyboard shortcuts for tab switching (e.g. Ctrl+1 / Cmd+1 and Ctrl+Teb/Ctrl+Shift+Tab)~~
 - ~~Allow users to reorder the AI assistants, and tab order persists after relaunch~~
-- ~~Portable Linux build~~
 - ~~Spellcheck support – Right-click misspelled words in text inputs to see correction suggestions~~
-- ~~Tab status indicators – Tabs can show lightweight states (e.g., loading) so you can tell what’s happening at a glance~~
-  - ~~Lazy-load aware (no indicator until a tab is first opened)~~
+- ~~Tab status indicators – Tabs can show lightweight states (e.g. loading) so you can tell what’s happening at a glance~~
+  - ~~Lazy-load aware (Greyed out indicator until a tab is first opened)~~
   - ~~Green dot indicates a tab is loaded and ready~~
   - ~~Spinner indicates active loading (click to stop)~~
   - ~~Red dot indicates load failure (click to retry)~~
   - ~~Clicking the status dot refreshes the tab (Shift+click = hard refresh OR just use Reload button)~~
 ~~- Customizable themes – Dark/light modes~~
-~~- Settings panel – Simple in-app settings for theme options, behavior, and quality-of-life~~
+~~- Settings panel – Simple in-app settings for theme options, behavior, and quality-of-life settings~~
 ~~- User add or remove tabs/embedded URLs for more variety~~
 - Command palette (Ctrl+K / Cmd+K) – A searchable action launcher to switch tabs, toggle settings (theme/spellcheck), and run common commands without cluttering the UI.
 - Export options (notes/app-owned content) – Export your notes or saved content to Markdown, PDF, or plain text.
